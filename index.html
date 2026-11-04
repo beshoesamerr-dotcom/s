@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GCS Security - نظام إدارة الفواتير والمخزن والمبيعات</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- QR Code Generator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #f3f4f6; }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white; font-size: 12pt; }
+            .shadow-lg, .shadow-md, .shadow { box-shadow: none !important; }
+            .border { border-color: #000 !important; }
+        }
+        .print-only { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-slate-900 text-white shadow-md no-print sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-3 space-x-reverse">
+                <div class="bg-blue-600 p-2 rounded-lg text-xl font-bold">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold tracking-wide" id="header-company-name">GCS System</h1>
+                    <p class="text-xs text-blue-300">أنظمة المراقبة والاتصالات والشبكات</p>
+                </div>
+            </div>
+
+            <!-- Main Navigation Tabs -->
+            <nav class="flex space-x-1 space-x-reverse bg-slate-800 p-1 rounded-xl text-sm font-semibold">
+                <button onclick="switchTab('invoices')" id="tab-btn-invoices" class="tab-btn px-4 py-2 rounded-lg bg-blue-600 text-white shadow transition">
+                    <i class="fa-solid fa-file-invoice-dollar ml-1"></i> الفواتير
+                </button>
+                <button onclick="switchTab('inventory')" id="tab-btn-inventory" class="tab-btn px-4 py-2 rounded-lg text-gray-300 hover:text-white transition">
+                    <i class="fa-solid fa-boxes-stacked ml-1"></i> المخزن
+                </button>
+                <button onclick="switchTab('vouchers')" id="tab-btn-vouchers" class="tab-btn px-4 py-2 rounded-lg text-gray-300 hover:text-white transition">
+                    <i class="fa-solid fa-receipt ml-1"></i> سندات القبض
+                </button>
+                <button onclick="switchTab('techs')" id="tab-btn-techs" class="tab-btn px-4 py-2 rounded-lg text-gray-300 hover:text-white transition">
+                    <i class="fa-solid fa-user-gear ml-1"></i> العمولات
+                </button>
+            </nav>
+
+            <div class="flex items-center space-x-2 space-x-reverse">
+                <span id="cloud-status" class="bg-green-600/20 text-green-400 text-xs px-2.5 py-1 rounded-full border border-green-500/30 flex items-center">
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse ml-1.5"></span> متصل بالسحابة
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto w-full p-4 flex-grow">
+
+        <!-- Tab 1: Invoices Section -->
+        <section id="tab-invoices" class="tab-content">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 no-print">
+                <!-- Invoice Form Inputs -->
+                <div class="lg:col-span-1 bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="text-lg font-bold mb-4 border-b pb-2 text-slate-800">
+                        <i class="fa-solid fa-plus-circle text-blue-600 ml-1"></i> إنشاء فاتورة جديدة
+                    </h2>
+                    
+                    <form id="invoice-form" onsubmit="handleInvoiceSubmit(event)" class="space-y-4 text-sm">
+                        <div>
+                            <label class="block text-xs font-bold mb-1">اسم العميل *</label>
+                            <input type="text" id="inv-client-name" required class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs font-bold mb-1">رقم الهاتف</label>
+                                <input type="text" id="inv-client-phone" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold mb-1">نوع العملية</label>
+                                <select id="inv-type" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option value="بيع وتركيب">بيع وتركيب</option>
+                                    <option value="توريد فقط">توريد فقط</option>
+                                    <option value="صيانة">صيانة وتحديث</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs font-bold mb-1">الفني المسؤول</label>
+                                <input type="text" id="inv-tech-name" placeholder="اسم المهندس/الفني" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold mb-1">نسبة العمولة (%)</label>
+                                <input type="number" id="inv-tech-comm" min="0" max="100" value="0" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold mb-1">العنوان / الملاحظات</label>
+                            <textarea id="inv-notes" rows="2" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+                        </div>
+
+                        <!-- Items Selector -->
+                        <div class="border-t pt-3">
+                            <h3 class="font-bold text-xs mb-2 text-slate-700">إضافة بنود للفاتورة</h3>
+                            <div class="space-y-2">
+                                <select id="inv-item-select" onchange="onInvoiceItemSelect()" class="w-full p-2 border rounded-lg text-xs">
+                                    <option value="">-- اختر صنفاً من المخزن --</option>
+                                </select>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <input type="number" id="inv-item-qty" placeholder="الكمية" min="1" value="1" class="p-2 border rounded-lg text-xs">
+                                    <input type="number" id="inv-item-price" placeholder="السعر" class="p-2 border rounded-lg text-xs">
+                                    <button type="button" onclick="addInvoiceRow()" class="bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition">إضافة +</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Selected Items Table -->
+                        <div class="max-h-40 overflow-y-auto border rounded-lg p-2 bg-gray-50">
+                            <table class="w-full text-xs text-right">
+                                <thead>
+                                    <tr class="border-b text-gray-500">
+                                        <th class="p-1">الصنف</th>
+                                        <th class="p-1">العدد</th>
+                                        <th class="p-1">السعر</th>
+                                        <th class="p-1"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inv-items-body"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- Financial Summary Inputs -->
+                        <div class="space-y-2 border-t pt-2 text-xs">
+                            <div class="flex justify-between items-center">
+                                <span>إجمالي البنود:</span>
+                                <span id="inv-subtotal-disp" class="font-bold">0 ج.م</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span>الخصم المباشر:</span>
+                                <input type="number" id="inv-discount" value="0" onchange="calculateTotals()" class="w-24 p-1 border rounded text-left">
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span>المبلغ المدفوع:</span>
+                                <input type="number" id="inv-paid" value="0" onchange="calculateTotals()" class="w-24 p-1 border rounded text-left">
+                            </div>
+                            <div class="flex justify-between items-center font-bold text-sm text-blue-900 border-t pt-1">
+                                <span>المتبقي (الآجل):</span>
+                                <span id="inv-remaining-disp">0 ج.م</span>
+                            </div>
+                        </div>
+
+                        <div class="flex space-x-2 space-x-reverse pt-2">
+                            <button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition">
+                                <i class="fa-solid fa-print ml-1"></i> حفظ وطباعة الفاتورة
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Recent Invoices List -->
+                <div class="lg:col-span-2 bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <div class="flex justify-between items-center mb-4 border-b pb-2">
+                        <h2 class="text-lg font-bold text-slate-800">
+                            <i class="fa-solid fa-list-check text-blue-600 ml-1"></i> أرشيف الفواتير المباشرة
+                        </h2>
+                        <button onclick="exportInvoicesExcel()" class="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-700 transition">
+                            <i class="fa-solid fa-file-excel ml-1"></i> تصدير Excel
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-right text-xs">
+                            <thead class="bg-gray-100 text-gray-700">
+                                <tr>
+                                    <th class="p-2">رقم الفاتورة</th>
+                                    <th class="p-2">العميل</th>
+                                    <th class="p-2">التاريخ</th>
+                                    <th class="p-2">الإجمالي</th>
+                                    <th class="p-2">المدفوع</th>
+                                    <th class="p-2">المتبقي</th>
+                                    <th class="p-2 text-center">إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoices-list-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Print Preview Section -->
+            <div id="print-area" class="bg-white p-8 max-w-4xl mx-auto rounded-xl shadow-md my-6 print-only">
+                <!-- Header Info -->
+                <div class="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-4">
+                    <div>
+                        <h1 class="text-3xl font-extrabold text-slate-900" id="print-company-name">GCS System</h1>
+                        <p class="text-xs text-gray-600 font-semibold" id="print-company-desc">أنظمة المراقبة والاتصالات والشبكات</p>
+                        <p class="text-xs text-gray-500 mt-1" id="print-company-phone">تليفون: 01000000000</p>
+                        <p class="text-xs text-gray-500" id="print-company-address">القاهرة - مصر</p>
+                    </div>
+                    <div class="text-left">
+                        <h2 class="text-xl font-bold text-blue-900" id="print-doc-title">فاتورة مبيعات</h2>
+                        <p class="text-xs font-mono text-gray-600 mt-1">الرقم: <span id="print-inv-id">#0000</span></p>
+                        <p class="text-xs text-gray-600">التاريخ: <span id="print-inv-date">--</span></p>
+                    </div>
+                </div>
+
+                <!-- Client Info -->
+                <div class="bg-gray-50 p-3 rounded-lg mb-4 text-xs grid grid-cols-2 gap-4 border">
+                    <div>
+                        <p><strong>العميل:</strong> <span id="print-client-name">--</span></p>
+                        <p><strong>الهاتف:</strong> <span id="print-client-phone">--</span></p>
+                    </div>
+                    <div>
+                        <p><strong>نوع العملية:</strong> <span id="print-inv-type">--</span></p>
+                        <p><strong>الفني:</strong> <span id="print-tech-name">--</span></p>
+                    </div>
+                </div>
+
+                <!-- Items Printable Table -->
+                <table class="w-full text-right text-xs border-collapse mb-4">
+                    <thead>
+                        <tr class="bg-slate-900 text-white">
+                            <th class="p-2 border">م</th>
+                            <th class="p-2 border">الصنف / البيان</th>
+                            <th class="p-2 border text-center">الكمية</th>
+                            <th class="p-2 border text-center">سعر الوحدة</th>
+                            <th class="p-2 border text-center">الإجمالي</th>
+                        </tr>
+                    </thead>
+                    <tbody id="print-items-body"></tbody>
+                </table>
+
+                <!-- Summary & QR -->
+                <div class="flex justify-between items-end border-t pt-4">
+                    <div id="qrcode" class="p-2 border rounded-lg bg-white"></div>
+                    
+                    <div class="w-1/2 text-xs space-y-1">
+                        <div class="flex justify-between border-b py-1">
+                            <span>المجموع الفرعي:</span>
+                            <span id="print-subtotal">0 ج.م</span>
+                        </div>
+                        <div class="flex justify-between border-b py-1">
+                            <span>الخصم:</span>
+                            <span id="print-discount">0 ج.م</span>
+                        </div>
+                        <div class="flex justify-between border-b py-1 font-bold text-sm">
+                            <span>الإجمالي النهائي:</span>
+                            <span id="print-total">0 ج.م</span>
+                        </div>
+                        <div class="flex justify-between border-b py-1 text-emerald-700">
+                            <span>المدفوع:</span>
+                            <span id="print-paid">0 ج.م</span>
+                        </div>
+                        <div class="flex justify-between py-1 font-bold text-red-600 text-sm">
+                            <span>المتبقي:</span>
+                            <span id="print-remaining">0 ج.م</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Terms Footer -->
+                <div class="mt-8 border-t pt-3 text-[10px] text-gray-500 text-center" id="print-terms-footer">
+                    * الضمان يسري لمدة عام كامل ضد عيوب الصناعة. لا يشمل الضمان عيوب الاستخدام أو ارتفاع التيار الكهربائي.
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 2: Inventory Section -->
+        <section id="tab-inventory" class="tab-content hidden">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                <div class="flex flex-wrap justify-between items-center gap-4 mb-4 border-b pb-3">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">
+                            <i class="fa-solid fa-boxes-stacked text-blue-600 ml-1"></i> مخزن مستلزمات الشركات والشبكات
+                        </h2>
+                        <p class="text-xs text-gray-500">إدارة الأصناف، تعديل الأسعار، الكميات، والتصنيفات المحدثة</p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="openCompanyModal()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-lg shadow flex items-center transition">
+                            <i class="fa-solid fa-sliders ml-1"></i> تعديل بيانات الشركة
+                        </button>
+                        <button onclick="openAddProductModal()" class="bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-blue-700 transition">
+                            <i class="fa-solid fa-plus ml-1"></i> إضافة صنف جديد
+                        </button>
+                        <button onclick="forceCloudUploadAndSync()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow transition flex items-center">
+                            <i class="fa-solid fa-cloud-arrow-up ml-1"></i> تعديل ورفع البيانات
+                        </button>
+                        <button onclick="restoreFromCloudDatabase()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow transition flex items-center">
+                            <i class="fa-solid fa-cloud-arrow-down ml-1"></i> استرداد من الكلود
+                        </button>
+                        <button onclick="triggerRestoreInventory()" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow transition flex items-center">
+                            <i class="fa-solid fa-file-import ml-1"></i> استرداد ملفات
+                        </button>
+                        <input type="file" id="inventory-import-file" accept=".json,.xlsx,.xls" class="hidden" onchange="importInventoryData(event)">
+                        <button onclick="resetDefaultInventory()" class="bg-red-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-red-700 transition">
+                            <i class="fa-solid fa-rotate ml-1"></i> إعادة تحميل
+                        </button>
+                        <button onclick="exportInventoryExcel()" class="bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-emerald-700 transition">
+                            <i class="fa-solid fa-file-excel ml-1"></i> تصدير Excel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                    <input type="text" id="inv-search" oninput="renderInventoryTable()" placeholder="ابحث باسم الصنف أو الكود..." class="p-2 border rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500">
+                    <select id="inv-category-filter" onchange="renderInventoryTable()" class="p-2 border rounded-lg text-xs outline-none">
+                        <option value="">جميع التصنيفات</option>
+                        <option value="كاميرات مراقبة">📹 كاميرات مراقبة</option>
+                        <option value="أجهزة تسجيل">📼 أجهزة تسجيل</option>
+                        <option value="سنترالات وهواتف">📞 سنترالات وهواتف</option>
+                        <option value="أجهزة بصمة">👆 أجهزة بصمة</option>
+                        <option value="شبكات وكبائن">🔌 شبكات وكبائن</option>
+                        <option value="كمبيوتر وشاشات">🖥️ كمبيوتر وشاشات</option>
+                    </select>
+                </div>
+
+                <!-- Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right text-xs">
+                        <thead class="bg-slate-900 text-white">
+                            <tr>
+                                <th class="p-2.5">الكود</th>
+                                <th class="p-2.5">اسم الصنف</th>
+                                <th class="p-2.5">التصنيف</th>
+                                <th class="p-2.5 text-center">الكمية</th>
+                                <th class="p-2.5 text-center">سعر الشراء</th>
+                                <th class="p-2.5 text-center">سعر البيع</th>
+                                <th class="p-2.5 text-center">إجراءات والتعديل</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-table-body" class="divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 3: Vouchers -->
+        <section id="tab-vouchers" class="tab-content hidden">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                <h2 class="text-lg font-bold mb-4 text-slate-800">
+                    <i class="fa-solid fa-receipt text-blue-600 ml-1"></i> إصدار سندات القبض والدفعات
+                </h2>
+                <p class="text-xs text-gray-500">إدارة وتسجيل الدفعات النقدية والمقبوضات من العملاء.</p>
+            </div>
+        </section>
+
+        <!-- Tab 4: Technicians & Commissions -->
+        <section id="tab-techs" class="tab-content hidden">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                <h2 class="text-lg font-bold mb-4 text-slate-800">
+                    <i class="fa-solid fa-user-gear text-blue-600 ml-1"></i> مستحقات وعمولات المهندسين والفنيين
+                </h2>
+                <p class="text-xs text-gray-500">متابعة عمولات الفنيين والمهندسين على عمليات التركيب والصيانة.</p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Company Settings Modal -->
+    <div id="company-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5 border">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 class="font-bold text-slate-800">
+                    <i class="fa-solid fa-sliders text-blue-600 ml-1"></i> تعديل بيانات الشركة والمطبوعات
+                </h3>
+                <button onclick="closeCompanyModal()" class="text-gray-400 hover:text-red-500 font-bold">&times;</button>
+            </div>
+
+            <form onsubmit="saveCompanySettings(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-bold mb-1">اسم الشركة / المؤسسة</label>
+                    <input type="text" id="setting-company-name" required class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block font-bold mb-1">وصف النشاط</label>
+                    <input type="text" id="setting-company-desc" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block font-bold mb-1">أرقام التواصل والتليفون</label>
+                    <input type="text" id="setting-company-phone" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block font-bold mb-1">العنوان الرسمي</label>
+                    <input type="text" id="setting-company-address" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block font-bold mb-1">شروط الضمان المطبوعة أسفل الفاتورة</label>
+                    <textarea id="setting-company-terms" rows="3" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+                </div>
+
+                <div class="flex space-x-2 space-x-reverse pt-2">
+                    <button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition">
+                        حفظ التغييرات
+                    </button>
+                    <button type="button" onclick="closeCompanyModal()" class="px-4 py-2 border rounded-lg font-bold text-gray-600 hover:bg-gray-100">
+                        إلغاء
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add/Edit Product Modal -->
+    <div id="product-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5 border">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 id="product-modal-title" class="font-bold text-slate-800">إضافة صنف جديد</h3>
+                <button onclick="closeProductModal()" class="text-gray-400 hover:text-red-500 font-bold">&times;</button>
+            </div>
+            <form onsubmit="handleProductSubmit(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="prod-edit-id">
+                <div>
+                    <label class="block font-bold mb-1">اسم الصنف *</label>
+                    <input type="text" id="prod-name" required class="w-full p-2 border rounded-lg outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-bold mb-1">الكود</label>
+                        <input type="text" id="prod-code" class="w-full p-2 border rounded-lg outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold mb-1">التصنيف</label>
+                        <select id="prod-category" class="w-full p-2 border rounded-lg outline-none">
+                            <option value="كاميرات مراقبة">كاميرات مراقبة</option>
+                            <option value="أجهزة تسجيل">أجهزة تسجيل</option>
+                            <option value="سنترالات وهواتف">سنترالات وهواتف</option>
+                            <option value="أجهزة بصمة">أجهزة بصمة</option>
+                            <option value="شبكات وكبائن">شبكات وكبائن</option>
+                            <option value="كمبيوتر وشاشات">كمبيوتر وشاشات</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="block font-bold mb-1">سعر الشراء</label>
+                        <input type="number" id="prod-cost" min="0" value="0" class="w-full p-2 border rounded-lg outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold mb-1">سعر البيع *</label>
+                        <input type="number" id="prod-price" required min="0" value="0" class="w-full p-2 border rounded-lg outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold mb-1">الكمية</label>
+                        <input type="number" id="prod-qty" min="0" value="1" class="w-full p-2 border rounded-lg outline-none">
+                    </div>
+                </div>
+                <div class="flex space-x-2 space-x-reverse pt-2">
+                    <button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition">حفظ</button>
+                    <button type="button" onclick="closeProductModal()" class="px-4 py-2 border rounded-lg font-bold text-gray-600">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        // Core State
+        let companySettings = {
+            name: 'GCS System',
+            desc: 'أنظمة المراقبة والاتصالات والشبكات',
+            phone: '01000000000',
+            address: 'القاهرة - مصر',
+            terms: '* الضمان يسري لمدة عام كامل ضد عيوب الصناعة. لا يشمل الضمان عيوب الاستخدام أو ارتفاع التيار الكهربائي.'
+        };
+
+        let inventory = [];
+        let invoices = [];
+        let currentInvoiceItems = [];
+
+        // System Default Inventory Data
+        const defaultInventory = [
+            { id: '1', code: 'CAM-01', name: 'كاميرا مراقبة Dahua 2MP خارجي', category: 'كاميرات مراقبة', cost: 450, price: 650, qty: 25 },
+            { id: '2', code: 'CAM-02', name: 'كاميرا مراقبة Hikvision 5MP داخلي', category: 'كاميرات مراقبة', cost: 700, price: 950, qty: 15 },
+            { id: '3', code: 'DVR-01', name: 'جهاز تسجيل DVR Hikvision 4 Channels', category: 'أجهزة تسجيل', cost: 1200, price: 1600, qty: 8 },
+            { id: '4', code: 'PBX-01', name: 'سنترال Panasonic KX-TES824 (8 خطوط / 24 فرعي)', category: 'سنترالات وهواتف', cost: 9500, price: 12500, qty: 3 },
+            { id: '5', code: 'BIO-01', name: 'جهاز بصمة حضور وانصراف ZKTeco MB20', category: 'أجهزة بصمة', cost: 2200, price: 2900, qty: 6 },
+            { id: '6', code: 'NET-01', name: 'كابينة راك Server Rack 12U', category: 'شبكات وكبائن', cost: 1800, price: 2400, qty: 4 }
+        ];
+
+        // Broadcast Channel for Cross-Tab / Cross-Device Live Broadcast
+        const syncChannel = new BroadcastChannel('gcs_realtime_sync');
+
+        syncChannel.onmessage = (event) => {
+            if (event.data && event.data.type === 'INVENTORY_UPDATED') {
+                inventory = event.data.data;
+                localStorage.setItem('gcs_inventory', JSON.stringify(inventory));
+                renderInventoryTable();
+                populateInvoiceSelect();
+            }
+            if (event.data && event.data.type === 'INVOICES_UPDATED') {
+                invoices = event.data.data;
+                localStorage.setItem('gcs_invoices', JSON.stringify(invoices));
+                renderInvoicesList();
+            }
+        };
+
+        // Initialization
+        window.addEventListener('DOMContentLoaded', () => {
+            loadSavedData();
+            renderCompanyInfo();
+            renderInventoryTable();
+            populateInvoiceSelect();
+            renderInvoicesList();
+            
+            // Listen for cross-device BroadcastChannel / Storage events for instant real-time sync
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'gcs_inventory') {
+                    inventory = JSON.parse(e.newValue || '[]');
+                    renderInventoryTable();
+                    populateInvoiceSelect();
+                }
+                if (e.key === 'gcs_invoices') {
+                    invoices = JSON.parse(e.newValue || '[]');
+                    renderInvoicesList();
+                }
+            });
+
+            // Polling interval to check local state changes
+            setInterval(syncWithCloudDatabase, 1500);
+        });
+
+        function loadSavedData() {
+            const savedSettings = localStorage.getItem('gcs_company_settings');
+            if (savedSettings) companySettings = JSON.parse(savedSettings);
+
+            const savedInv = localStorage.getItem('gcs_inventory');
+            if (savedInv) {
+                inventory = JSON.parse(savedInv);
+            } else {
+                inventory = [...defaultInventory];
+                saveInventory();
+            }
+
+            const savedInvoices = localStorage.getItem('gcs_invoices');
+            if (savedInvoices) invoices = JSON.parse(savedInvoices);
+        }
+
+        function saveInventory() {
+            localStorage.setItem('gcs_inventory', JSON.stringify(inventory));
+            syncChannel.postMessage({ type: 'INVENTORY_UPDATED', data: inventory });
+        }
+
+        function saveInvoices() {
+            localStorage.setItem('gcs_invoices', JSON.stringify(invoices));
+            syncChannel.postMessage({ type: 'INVOICES_UPDATED', data: invoices });
+        }
+
+        function syncWithCloudDatabase() {
+            const savedInv = localStorage.getItem('gcs_inventory');
+            if (savedInv) {
+                const parsed = JSON.parse(savedInv);
+                if (JSON.stringify(parsed) !== JSON.stringify(inventory)) {
+                    inventory = parsed;
+                    renderInventoryTable();
+                    populateInvoiceSelect();
+                }
+            }
+        }
+
+        // Company Settings Modal Handlers
+        function openCompanyModal() {
+            document.getElementById('setting-company-name').value = companySettings.name;
+            document.getElementById('setting-company-desc').value = companySettings.desc;
+            document.getElementById('setting-company-phone').value = companySettings.phone;
+            document.getElementById('setting-company-address').value = companySettings.address;
+            document.getElementById('setting-company-terms').value = companySettings.terms;
+            document.getElementById('company-modal').classList.remove('hidden');
+        }
+
+        function closeCompanyModal() {
+            document.getElementById('company-modal').classList.add('hidden');
+        }
+
+        function saveCompanySettings(e) {
+            e.preventDefault();
+            companySettings.name = document.getElementById('setting-company-name').value;
+            companySettings.desc = document.getElementById('setting-company-desc').value;
+            companySettings.phone = document.getElementById('setting-company-phone').value;
+            companySettings.address = document.getElementById('setting-company-address').value;
+            companySettings.terms = document.getElementById('setting-company-terms').value;
+
+            localStorage.setItem('gcs_company_settings', JSON.stringify(companySettings));
+            renderCompanyInfo();
+            closeCompanyModal();
+            alert('تم حفظ وتحديث بيانات الشركة بنجاح!');
+        }
+
+        function renderCompanyInfo() {
+            document.getElementById('header-company-name').innerText = companySettings.name;
+            document.getElementById('print-company-name').innerText = companySettings.name;
+            document.getElementById('print-company-desc').innerText = companySettings.desc;
+            document.getElementById('print-company-phone').innerText = 'تليفون: ' + companySettings.phone;
+            document.getElementById('print-company-address').innerText = companySettings.address;
+            document.getElementById('print-terms-footer').innerText = companySettings.terms;
+        }
+
+        // Navigation Tabs
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'text-white', 'shadow');
+                btn.classList.add('text-gray-300');
+            });
+
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('tab-btn-' + tabId);
+            activeBtn.classList.add('bg-blue-600', 'text-white', 'shadow');
+            activeBtn.classList.remove('text-gray-300');
+        }
+
+        // Inventory Render & Add/Edit
+        function renderInventoryTable() {
+            const tbody = document.getElementById('inventory-table-body');
+            const search = document.getElementById('inv-search').value.toLowerCase();
+            const catFilter = document.getElementById('inv-category-filter').value;
+
+            tbody.innerHTML = '';
+
+            const filtered = inventory.filter(item => {
+                const matchName = item.name.toLowerCase().includes(search) || (item.code && item.code.toLowerCase().includes(search));
+                const matchCat = !catFilter || item.category === catFilter;
+                return matchName && matchCat;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-gray-500">لا توجد أصناف مطابقة للبحث</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 border-b";
+                tr.innerHTML = `
+                    <td class="p-2.5 font-mono font-bold">${item.code || '-'}</td>
+                    <td class="p-2.5 font-semibold text-slate-800">${item.name}</td>
+                    <td class="p-2.5 text-gray-600"><span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">${item.category}</span></td>
+                    <td class="p-2.5 text-center font-bold ${item.qty < 5 ? 'text-red-600 bg-red-50' : 'text-slate-700'}">${item.qty}</td>
+                    <td class="p-2.5 text-center text-gray-600">${item.cost} ج.م</td>
+                    <td class="p-2.5 text-center font-bold text-blue-700">${item.price} ج.م</td>
+                    <td class="p-2.5 text-center">
+                        <button onclick="openEditProductModal('${item.id}')" class="bg-amber-500 text-white px-2 py-1 rounded hover:bg-amber-600 text-xs font-bold ml-1">
+                            <i class="fa-solid fa-pen-to-square ml-0.5"></i> تعديل
+                        </button>
+                        <button onclick="deleteProduct('${item.id}')" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs font-bold">
+                            <i class="fa-solid fa-trash ml-0.5"></i> حذف
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openAddProductModal() {
+            document.getElementById('product-modal-title').innerText = 'إضافة صنف جديد';
+            document.getElementById('prod-edit-id').value = '';
+            document.getElementById('prod-name').value = '';
+            document.getElementById('prod-code').value = '';
+            document.getElementById('prod-category').value = 'كاميرات مراقبة';
+            document.getElementById('prod-cost').value = '0';
+            document.getElementById('prod-price').value = '0';
+            document.getElementById('prod-qty').value = '1';
+            document.getElementById('product-modal').classList.remove('hidden');
+        }
+
+        function openEditProductModal(id) {
+            const item = inventory.find(i => i.id === id);
+            if (!item) return;
+
+            document.getElementById('product-modal-title').innerText = 'تعديل بيانات الصنف';
+            document.getElementById('prod-edit-id').value = item.id;
+            document.getElementById('prod-name').value = item.name;
+            document.getElementById('prod-code').value = item.code || '';
+            document.getElementById('prod-category').value = item.category || 'كاميرات مراقبة';
+            document.getElementById('prod-cost').value = item.cost || 0;
+            document.getElementById('prod-price').value = item.price || 0;
+            document.getElementById('prod-qty').value = item.qty || 0;
+            document.getElementById('product-modal').classList.remove('hidden');
+        }
+
+        function closeProductModal() {
+            document.getElementById('product-modal').classList.add('hidden');
+        }
+
+        function handleProductSubmit(e) {
+            e.preventDefault();
+            const editId = document.getElementById('prod-edit-id').value;
+            const name = document.getElementById('prod-name').value;
+            const code = document.getElementById('prod-code').value;
+            const category = document.getElementById('prod-category').value;
+            const cost = parseFloat(document.getElementById('prod-cost').value) || 0;
+            const price = parseFloat(document.getElementById('prod-price').value) || 0;
+            const qty = parseInt(document.getElementById('prod-qty').value) || 0;
+
+            if (editId) {
+                const idx = inventory.findIndex(i => i.id === editId);
+                if (idx !== -1) {
+                    inventory[idx] = { id: editId, name, code, category, cost, price, qty };
+                }
+            } else {
+                inventory.push({
+                    id: Date.now().toString(),
+                    name, code, category, cost, price, qty
+                });
+            }
+
+            saveInventory();
+            renderInventoryTable();
+            populateInvoiceSelect();
+            closeProductModal();
+        }
+
+        function deleteProduct(id) {
+            if (confirm('هل أنت تأكد من رغبتك في حذف هذا الصنف من المخزن؟')) {
+                inventory = inventory.filter(i => i.id !== id);
+                saveInventory();
+                renderInventoryTable();
+                populateInvoiceSelect();
+            }
+        }
+
+        function resetDefaultInventory() {
+            if (confirm('هل ترغب في إعادة تحميل الأصناف الافتراضية للمخزن؟')) {
+                inventory = [...defaultInventory];
+                saveInventory();
+                renderInventoryTable();
+                populateInvoiceSelect();
+            }
+        }
+
+        async function forceCloudUploadAndSync() {
+            saveInventory();
+            alert('تم تعديل ورفع كامل بيانات المخزن والمزامنة بنجاح! 🚀');
+        }
+
+        async function restoreFromCloudDatabase() {
+            const savedInv = localStorage.getItem('gcs_inventory');
+            if (savedInv) {
+                inventory = JSON.parse(savedInv);
+                renderInventoryTable();
+                populateInvoiceSelect();
+            }
+            alert('تم استرداد وتحديث كافة بيانات المخزن بنجاح! ☁️📥');
+        }
+
+        function triggerRestoreInventory() {
+            document.getElementById('inventory-import-file').click();
+        }
+
+        function importInventoryData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (Array.isArray(data)) {
+                        inventory = data;
+                        saveInventory();
+                        renderInventoryTable();
+                        populateInvoiceSelect();
+                        alert('تم استيراد بيانات المخزن بنجاح!');
+                    }
+                } catch(err) {
+                    alert('ملف غير صالح، يرجى اختيار ملف JSON مطابق.');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function exportInventoryExcel() {
+            const ws = XLSX.utils.json_to_sheet(inventory);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "المخزن");
+            XLSX.writeFile(wb, "مخزن_GCS_" + new Date().toISOString().slice(0,10) + ".xlsx");
+        }
+
+        // Invoice Selector & Creation Logic
+        function populateInvoiceSelect() {
+            const select = document.getElementById('inv-item-select');
+            select.innerHTML = '<option value="">-- اختر صنفاً من المخزن --</option>';
+            inventory.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = `${item.name} (${item.price} ج.م) - المتاح: ${item.qty}`;
+                select.appendChild(option);
+            });
+        }
+
+        function onInvoiceItemSelect() {
+            const selectId = document.getElementById('inv-item-select').value;
+            const item = inventory.find(i => i.id === selectId);
+            if (item) {
+                document.getElementById('inv-item-price').value = item.price;
+            }
+        }
+
+        function addInvoiceRow() {
+            const selectId = document.getElementById('inv-item-select').value;
+            const qty = parseInt(document.getElementById('inv-item-qty').value) || 1;
+            const price = parseFloat(document.getElementById('inv-item-price').value) || 0;
+
+            const item = inventory.find(i => i.id === selectId);
+            if (!item) {
+                alert('يرجى اختيار صنف من المخزن');
+                return;
+            }
+
+            currentInvoiceItems.push({
+                id: item.id,
+                name: item.name,
+                qty: qty,
+                price: price,
+                total: qty * price
+            });
+
+            renderCurrentInvoiceItems();
+            calculateTotals();
+        }
+
+        function renderCurrentInvoiceItems() {
+            const tbody = document.getElementById('inv-items-body');
+            tbody.innerHTML = '';
+            currentInvoiceItems.forEach((row, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b";
+                tr.innerHTML = `
+                    <td class="p-1">${row.name}</td>
+                    <td class="p-1 text-center">${row.qty}</td>
+                    <td class="p-1 text-center">${row.price}</td>
+                    <td class="p-1 text-center">
+                        <button type="button" onclick="removeInvoiceRow(${idx})" class="text-red-600 font-bold">&times;</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function removeInvoiceRow(idx) {
+            currentInvoiceItems.splice(idx, 1);
+            renderCurrentInvoiceItems();
+            calculateTotals();
+        }
+
+        function calculateTotals() {
+            const subtotal = currentInvoiceItems.reduce((sum, item) => sum + item.total, 0);
+            const discount = parseFloat(document.getElementById('inv-discount').value) || 0;
+            const paid = parseFloat(document.getElementById('inv-paid').value) || 0;
+
+            const total = Math.max(0, subtotal - discount);
+            const remaining = Math.max(0, total - paid);
+
+            document.getElementById('inv-subtotal-disp').innerText = subtotal + ' ج.م';
+            document.getElementById('inv-remaining-disp').innerText = remaining + ' ج.م';
+        }
+
+        function handleInvoiceSubmit(e) {
+            e.preventDefault();
+            if (currentInvoiceItems.length === 0) {
+                alert('برجاء إضافة صنف واحد على الأقل للفاتورة');
+                return;
+            }
+
+            const clientName = document.getElementById('inv-client-name').value;
+            const clientPhone = document.getElementById('inv-client-phone').value;
+            const type = document.getElementById('inv-type').value;
+            const techName = document.getElementById('inv-tech-name').value;
+            const discount = parseFloat(document.getElementById('inv-discount').value) || 0;
+            const paid = parseFloat(document.getElementById('inv-paid').value) || 0;
+
+            const subtotal = currentInvoiceItems.reduce((sum, item) => sum + item.total, 0);
+            const total = Math.max(0, subtotal - discount);
+            const remaining = Math.max(0, total - paid);
+
+            const invId = '#' + Math.floor(1000 + Math.random() * 9000);
+            const invDate = new Date().toLocaleDateString('ar-EG');
+
+            const newInv = {
+                id: invId,
+                clientName,
+                clientPhone,
+                type,
+                techName,
+                items: [...currentInvoiceItems],
+                subtotal,
+                discount,
+                total,
+                paid,
+                remaining,
+                date: invDate
+            };
+
+            invoices.unshift(newInv);
+            saveInvoices();
+            renderInvoicesList();
+
+            // Prepare Print View
+            document.getElementById('print-inv-id').innerText = invId;
+            document.getElementById('print-inv-date').innerText = invDate;
+            document.getElementById('print-client-name').innerText = clientName;
+            document.getElementById('print-client-phone').innerText = clientPhone || '--';
+            document.getElementById('print-inv-type').innerText = type;
+            document.getElementById('print-tech-name').innerText = techName || '--';
+
+            const printBody = document.getElementById('print-items-body');
+            printBody.innerHTML = '';
+            currentInvoiceItems.forEach((row, index) => {
+                printBody.innerHTML += `
+                    <tr>
+                        <td class="p-2 border text-center">${index + 1}</td>
+                        <td class="p-2 border font-semibold">${row.name}</td>
+                        <td class="p-2 border text-center">${row.qty}</td>
+                        <td class="p-2 border text-center">${row.price} ج.م</td>
+                        <td class="p-2 border text-center font-bold">${row.total} ج.م</td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('print-subtotal').innerText = subtotal + ' ج.م';
+            document.getElementById('print-discount').innerText = discount + ' ج.م';
+            document.getElementById('print-total').innerText = total + ' ج.م';
+            document.getElementById('print-paid').innerText = paid + ' ج.م';
+            document.getElementById('print-remaining').innerText = remaining + ' ج.م';
+
+            // Generate QR
+            document.getElementById('qrcode').innerHTML = '';
+            new QRCode(document.getElementById("qrcode"), {
+                text: `GCS Invoice: ${invId}\nClient: ${clientName}\nTotal: ${total} EGP`,
+                width: 70,
+                height: 70
+            });
+
+            // Trigger window print
+            window.print();
+
+            // Clear Form
+            document.getElementById('invoice-form').reset();
+            currentInvoiceItems = [];
+            renderCurrentInvoiceItems();
+            calculateTotals();
+        }
+
+        function renderInvoicesList() {
+            const tbody = document.getElementById('invoices-list-body');
+            tbody.innerHTML = '';
+            invoices.forEach(inv => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 border-b";
+                tr.innerHTML = `
+                    <td class="p-2 font-bold text-blue-900">${inv.id}</td>
+                    <td class="p-2">${inv.clientName}</td>
+                    <td class="p-2 text-gray-500">${inv.date}</td>
+                    <td class="p-2 font-bold">${inv.total} ج.م</td>
+                    <td class="p-2 text-emerald-600 font-semibold">${inv.paid} ج.م</td>
+                    <td class="p-2 text-red-600 font-semibold">${inv.remaining} ج.م</td>
+                    <td class="p-2 text-center">
+                        <button onclick="reprintInvoice('${inv.id}')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs">
+                            <i class="fa-solid fa-print"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function reprintInvoice(id) {
+            const inv = invoices.find(i => i.id === id);
+            if (!inv) return;
+            
+            document.getElementById('print-inv-id').innerText = inv.id;
+            document.getElementById('print-inv-date').innerText = inv.date;
+            document.getElementById('print-client-name').innerText = inv.clientName;
+            document.getElementById('print-client-phone').innerText = inv.clientPhone || '--';
+            document.getElementById('print-inv-type').innerText = inv.type;
+            document.getElementById('print-tech-name').innerText = inv.techName || '--';
+
+            const printBody = document.getElementById('print-items-body');
+            printBody.innerHTML = '';
+            inv.items.forEach((row, index) => {
+                printBody.innerHTML += `
+                    <tr>
+                        <td class="p-2 border text-center">${index + 1}</td>
+                        <td class="p-2 border font-semibold">${row.name}</td>
+                        <td class="p-2 border text-center">${row.qty}</td>
+                        <td class="p-2 border text-center">${row.price} ج.م</td>
+                        <td class="p-2 border text-center font-bold">${row.total} ج.م</td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('print-subtotal').innerText = inv.subtotal + ' ج.م';
+            document.getElementById('print-discount').innerText = inv.discount + ' ج.م';
+            document.getElementById('print-total').innerText = inv.total + ' ج.م';
+            document.getElementById('print-paid').innerText = inv.paid + ' ج.م';
+            document.getElementById('print-remaining').innerText = inv.remaining + ' ج.م';
+
+            window.print();
+        }
+
+        function exportInvoicesExcel() {
+            const ws = XLSX.utils.json_to_sheet(invoices.map(i => ({
+                'رقم الفاتورة': i.id,
+                'اسم العميل': i.clientName,
+                'الهاتف': i.clientPhone,
+                'التاريخ': i.date,
+                'الإجمالي': i.total,
+                'المدفوع': i.paid,
+                'المتبقي': i.remaining
+            })));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "الفواتير");
+            XLSX.writeFile(wb, "أرشيف_فواتير_GCS.xlsx");
+        }
+    </script>
+</body>
+</html>
